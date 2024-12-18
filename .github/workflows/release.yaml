@@ -1,0 +1,16 @@
+name: master-actions
+run-name: RELEASE
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        uses: ${{ vars.RELEASE_ACTION }}
+        with:
+          token: ${{ github.token }}
+          config_path: version/version.yaml
