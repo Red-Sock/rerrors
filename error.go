@@ -89,7 +89,14 @@ func (e Error) UserError() string {
 }
 
 func (e Error) errorWithTrace() (msg string) {
-	msg += e.msg
+	frames := runtime.CallersFrames(e.trace[:])
+	fr, ok := frames.Next()
+	if ok {
+		traceStr := strings.Join(
+			[]string{fr.Function + "() returned -> \"" + e.msg + "\"",
+				"        " + fr.File + ":" + strconv.Itoa(fr.Line)}, "\n")
+		msg = "\n" + traceStr
+	}
 
 	if e.innerError != nil {
 		var cE Error
@@ -98,15 +105,6 @@ func (e Error) errorWithTrace() (msg string) {
 		} else {
 			msg = e.innerError.Error() + "\n" + msg
 		}
-	}
-
-	frames := runtime.CallersFrames(e.trace[:])
-	fr, ok := frames.Next()
-	if ok {
-		traceStr := strings.Join(
-			[]string{fr.Function + "()",
-				"        " + fr.File + ":" + strconv.Itoa(fr.Line)}, "\n")
-		msg = traceStr + "\n" + msg
 	}
 
 	return msg
