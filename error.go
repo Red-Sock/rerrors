@@ -2,6 +2,7 @@ package rerrors
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -28,11 +29,11 @@ func init() {
 }
 
 func New(msg string, args ...any) error {
-	str, grpcCode := split(args)
+	ev := split(args)
 
 	err := Error{
-		msg:      strings.Join(append([]string{msg}, str...), "; "),
-		grpcCode: grpcCode,
+		msg:      strings.Join(append([]string{msg}, ev.str...), "; "),
+		grpcCode: ev.grpcCode,
 	}
 
 	if enableTracing {
@@ -43,11 +44,11 @@ func New(msg string, args ...any) error {
 }
 
 func NewUserError(msg string, args ...any) error {
-	str, grpcCode := split(args)
+	ev := split(args)
 
 	err := Error{
-		msg:         strings.Join(append([]string{msg}, str...), "; "),
-		grpcCode:    grpcCode,
+		msg:         strings.Join(append([]string{msg}, ev.str...), "; "),
+		grpcCode:    ev.grpcCode,
 		isUserError: true,
 	}
 
@@ -66,6 +67,7 @@ type Error struct {
 	trace       [3]uintptr
 
 	grpcCode *codes.Code
+	httpCode *int
 }
 
 func (e Error) Error() (msg string) {
@@ -141,6 +143,16 @@ func (e Error) GRPCStatus() *status.Status {
 	}
 
 	return status.New(codes.Internal, e.UserError())
+}
+
+func (e Error) HttpStatus(w http.ResponseWriter) {
+	code := http.StatusInternalServerError
+	if e.httpCode != nil {
+		code = *e.httpCode
+	}
+
+	w.WriteHeader(code)
+	_, _ = w.Write([]byte(e.innerError.Error()))
 }
 
 func Is(err1, err2 error) bool {

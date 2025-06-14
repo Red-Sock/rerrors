@@ -10,20 +10,20 @@ import (
 )
 
 func Wrap(innerError error, msg ...any) error {
-	str, grpcCode := split(msg)
+	ev := split(msg)
 
 	se, ok := status.FromError(innerError)
 	if ok {
-		if grpcCode == nil {
+		if ev.grpcCode == nil {
 			c := se.Code()
-			grpcCode = &c
+			ev.grpcCode = &c
 		}
 	}
 
 	err := Error{
 		innerError: innerError,
-		msg:        strings.Join(str, "; "),
-		grpcCode:   grpcCode,
+		msg:        strings.Join(ev.str, "; "),
+		grpcCode:   ev.grpcCode,
 	}
 
 	if enableTracing {
@@ -37,15 +37,23 @@ func Wrapf(err error, msg string, args ...interface{}) error {
 	return Wrap(err, fmt.Sprintf(msg, args...))
 }
 
-func split(in []any) (str []string, grpcCode *codes.Code) {
+type errorValues struct {
+	str      []string
+	grpcCode *codes.Code
+	opts     []opt
+}
+
+func split(in []any) (ev errorValues) {
 	for _, m := range in {
 		switch v := m.(type) {
 		case string:
-			str = append(str, v)
+			ev.str = append(ev.str, v)
 		case codes.Code:
-			grpcCode = &v
+			ev.grpcCode = &v
+		case opt:
+			ev.opts = append(ev.opts, v)
 		}
 	}
 
-	return
+	return ev
 }
