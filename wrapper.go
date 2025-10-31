@@ -6,19 +6,10 @@ import (
 	"strings"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func Wrap(innerError error, msg ...any) error {
 	ev := split(msg)
-
-	se, ok := status.FromError(innerError)
-	if ok {
-		if ev.grpcCode == nil {
-			c := se.Code()
-			ev.grpcCode = &c
-		}
-	}
 
 	err := Error{
 		innerError: innerError,

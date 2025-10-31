@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -132,12 +133,21 @@ func (e Error) Unwrap() error {
 }
 
 func (e Error) GRPCStatus() *status.Status {
+	grpcStatus, ok := status.FromError(e.innerError)
+	if ok {
+		if enableTracing {
+			grpcStatus = addTraceDebugToGrpcStatus(grpcStatus, e)
+		}
+
+		return grpcStatus
+	}
+
 	if e.grpcCode != nil {
 		return status.New(*e.grpcCode, e.Error())
 	}
 
 	var ie Error
-	ok := errors.As(e.innerError, &ie)
+	ok = errors.As(e.innerError, &ie)
 	if ok {
 		return ie.GRPCStatus()
 	}
@@ -165,4 +175,13 @@ func As(err1, err2 error) bool {
 
 func Join(errs ...error) error {
 	return errors.Join(errs...)
+}
+
+func addTraceDebugToGrpcStatus(s *status.Status, e Error) *status.Status {
+	det := &errdetails.DebugInfo{
+		Detail: e.errorWithTrace(),
+	}
+
+	s, _ = s.WithDetails(det)
+	return s
 }
