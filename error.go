@@ -133,13 +133,15 @@ func (e Error) Unwrap() error {
 }
 
 func (e Error) GRPCStatus() *status.Status {
-	grpcStatus, ok := status.FromError(e.innerError)
-	if ok {
-		if enableTracing {
-			grpcStatus = addTraceDebugToGrpcStatus(grpcStatus, e)
-		}
+	if e.innerError != nil {
+		grpcStatus, ok := status.FromError(e.innerError)
+		if ok && grpcStatus != nil {
+			if enableTracing {
+				grpcStatus = addTraceDebugToGrpcStatus(grpcStatus, e)
+			}
 
-		return grpcStatus
+			return grpcStatus
+		}
 	}
 
 	if e.grpcCode != nil {
@@ -147,7 +149,7 @@ func (e Error) GRPCStatus() *status.Status {
 	}
 
 	var ie Error
-	ok = errors.As(e.innerError, &ie)
+	ok := errors.As(e.innerError, &ie)
 	if ok {
 		return ie.GRPCStatus()
 	}
