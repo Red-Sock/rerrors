@@ -27,6 +27,7 @@ func init() {
 			return
 		}
 	}
+
 }
 
 func New(msg string, args ...any) error {
@@ -92,21 +93,23 @@ func (e Error) UserError() string {
 }
 
 func (e Error) errorWithTrace() (msg string) {
+	errSeparator := GetSeparator()
+
 	frames := runtime.CallersFrames(e.trace[:])
 	fr, ok := frames.Next()
 	if ok {
 		traceStr := strings.Join(
 			[]string{fr.Function + "() returned -> \"" + e.msg + "\"",
 				"        " + fr.File + ":" + strconv.Itoa(fr.Line)}, "\n")
-		msg = "\n" + traceStr
+		msg = errSeparator + traceStr
 	}
 
 	if e.innerError != nil {
 		var cE Error
 		if errors.As(e.innerError, &cE) {
-			msg = cE.errorWithTrace() + "\n" + msg
+			msg = cE.errorWithTrace() + errSeparator + msg
 		} else {
-			msg = e.innerError.Error() + "\n" + msg
+			msg = e.innerError.Error() + errSeparator + msg
 		}
 	}
 
@@ -115,13 +118,14 @@ func (e Error) errorWithTrace() (msg string) {
 
 func (e Error) error() (msg string) {
 	msg += e.msg
+	errSeparator := GetSeparator()
 
 	if e.innerError != nil {
 		var cE Error
 		if errors.As(e.innerError, &cE) {
-			msg = cE.error() + "\n" + msg
+			msg = cE.error() + errSeparator + msg
 		} else {
-			msg = e.innerError.Error() + "\n" + msg
+			msg = e.innerError.Error() + errSeparator + msg
 		}
 	}
 
@@ -133,25 +137,15 @@ func (e Error) Unwrap() error {
 }
 
 func (e Error) GRPCStatus() *status.Status {
-	if e.innerError != nil {
-		grpcStatus, ok := status.FromError(e.innerError)
-		if ok && grpcStatus != nil {
-			if enableTracing {
-				grpcStatus = addTraceDebugToGrpcStatus(grpcStatus, e)
-			}
-
-			return grpcStatus
-		}
+	var ie Error
+	ok := errors.As(e.innerError, &ie)
+	if ok {
+		innerStat := ie.GRPCStatus()
+		return status.New(innerStat.Code(), e.Error())
 	}
 
 	if e.grpcCode != nil {
 		return status.New(*e.grpcCode, e.Error())
-	}
-
-	var ie Error
-	ok := errors.As(e.innerError, &ie)
-	if ok {
-		return ie.GRPCStatus()
 	}
 
 	return status.New(codes.Internal, e.UserError())
@@ -171,7 +165,7 @@ func Is(err1, err2 error) bool {
 	return errors.Is(err1, err2)
 }
 
-func As(err1, err2 error) bool {
+func As(err1 error, err2 any) bool {
 	return errors.As(err1, err2)
 }
 
