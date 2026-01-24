@@ -117,15 +117,20 @@ func (e Error) errorWithTrace() (msg string) {
 }
 
 func (e Error) error() (msg string) {
-	msg += e.msg
+	msg = e.msg
+
 	errSeparator := GetSeparator()
 
 	if e.innerError != nil {
 		var cE Error
 		if errors.As(e.innerError, &cE) {
-			msg = cE.error() + errSeparator + msg
+			msg = cE.error()
 		} else {
-			msg = e.innerError.Error() + errSeparator + msg
+			msg = e.innerError.Error()
+		}
+
+		if e.msg != "" {
+			msg += errSeparator + e.msg
 		}
 	}
 
