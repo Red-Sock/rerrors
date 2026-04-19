@@ -171,7 +171,7 @@ func (e Error) HttpStatus(w http.ResponseWriter) {
 	}
 
 	w.WriteHeader(code)
-	_, _ = w.Write([]byte(e.innerError.Error()))
+	_, _ = w.Write([]byte(e.Error()))
 }
 
 func Is(err1, err2 error) bool {
