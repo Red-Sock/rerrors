@@ -157,6 +157,14 @@ func (e Error) GRPCStatus() *status.Status {
 }
 
 func (e Error) HttpStatus(w http.ResponseWriter) {
+	if e.innerError != nil {
+		var cE Error
+		if errors.As(e.innerError, &cE) {
+			cE.HttpStatus(w)
+			return
+		}
+	}
+
 	code := http.StatusInternalServerError
 	if e.httpCode != nil {
 		code = *e.httpCode
