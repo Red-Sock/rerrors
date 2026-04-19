@@ -38,6 +38,10 @@ func New(msg string, args ...any) error {
 		grpcCode: ev.grpcCode,
 	}
 
+	for _, o := range ev.opts {
+		o(&err)
+	}
+
 	if enableTracing {
 		runtime.Callers(2, err.trace[:])
 	}
