@@ -2,7 +2,7 @@ package rerrors
 
 import (
 	"errors"
-	"net/http"
+	"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -11,6 +11,7 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/protoadapt"
 )
 
 var enableTracing = false
@@ -31,31 +32,28 @@ func init() {
 }
 
 func New(msg string, args ...any) error {
-	ev := split(args)
-
-	err := Error{
-		msg:      strings.Join(append([]string{msg}, ev.str...), "; "),
-		grpcCode: ev.grpcCode,
-	}
-
-	for _, o := range ev.opts {
-		o(&err)
-	}
-
-	if enableTracing {
-		runtime.Callers(2, err.trace[:])
-	}
-
-	return err
+	return newErr(msg, args...)
 }
 
 func NewUserError(msg string, args ...any) error {
+	e := newErr(msg, args...)
+
+	e.isUserError = true
+
+	return e
+}
+
+func newErr(msg string, args ...any) Error {
 	ev := split(args)
 
 	err := Error{
 		msg:         strings.Join(append([]string{msg}, ev.str...), "; "),
 		grpcCode:    ev.grpcCode,
-		isUserError: true,
+		grpcDetails: ev.grpcDetails,
+	}
+
+	for _, o := range ev.opts {
+		o(&err)
 	}
 
 	if enableTracing {
@@ -72,28 +70,9 @@ type Error struct {
 	msg         string
 	trace       [3]uintptr
 
-	grpcCode *codes.Code
-	httpCode *int
-}
-
-func (e Error) Error() (msg string) {
-	if enableTracing {
-		return e.errorWithTrace()
-	}
-
-	return e.error()
-}
-
-func (e Error) UserError() string {
-	if e.isUserError {
-		return e.msg
-	}
-	var cE Error
-	if errors.As(e.innerError, &cE) {
-		return cE.UserError()
-	}
-
-	return e.error()
+	grpcCode    *codes.Code
+	grpcDetails []protoadapt.MessageV1
+	httpCode    *int
 }
 
 func (e Error) errorWithTrace() (msg string) {
@@ -138,44 +117,34 @@ func (e Error) error() (msg string) {
 		}
 	}
 
-	return msg
-}
-
-func (e Error) Unwrap() error {
-	return e.innerError
-}
-
-func (e Error) GRPCStatus() *status.Status {
-	var ie Error
-	ok := errors.As(e.innerError, &ie)
-	if ok {
-		innerStat := ie.GRPCStatus()
-		return status.New(innerStat.Code(), e.Error())
-	}
-
 	if e.grpcCode != nil {
-		return status.New(*e.grpcCode, e.Error())
+		msg += errSeparator + "GrpcCode: " + strconv.Itoa(int(*e.grpcCode))
 	}
 
-	return status.New(codes.Internal, e.UserError())
-}
-
-func (e Error) HttpStatus(w http.ResponseWriter) {
-	if e.innerError != nil {
-		var cE Error
-		if errors.As(e.innerError, &cE) {
-			cE.HttpStatus(w)
-			return
+	if len(e.grpcDetails) != 0 {
+		for idx, detail := range e.grpcDetails {
+			msg += errSeparator + fmt.Sprintf("GrpcDetails[%d]:", idx) + detail.String()
 		}
 	}
 
-	code := http.StatusInternalServerError
 	if e.httpCode != nil {
-		code = *e.httpCode
+		msg += errSeparator + "HttpCode: " + strconv.Itoa(int(*e.httpCode))
 	}
 
-	w.WriteHeader(code)
-	_, _ = w.Write([]byte(e.Error()))
+	return msg
+}
+
+func (e Error) collectGrpcDetails() []protoadapt.MessageV1 {
+	var innerDetails []protoadapt.MessageV1
+
+	if e.innerError != nil {
+		var rerr Error
+		if errors.As(e.innerError, &rerr) {
+			innerDetails = rerr.collectGrpcDetails()
+		}
+	}
+
+	return append(e.grpcDetails, innerDetails...)
 }
 
 func Is(err1, err2 error) bool {

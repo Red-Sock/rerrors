@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/protoadapt"
 )
 
 func Wrap(innerError error, msg ...any) error {
@@ -29,9 +30,11 @@ func Wrapf(err error, msg string, args ...interface{}) error {
 }
 
 type errorValues struct {
-	str      []string
-	grpcCode *codes.Code
-	opts     []opt
+	str         []string
+	grpcCode    *codes.Code
+	grpcDetails []protoadapt.MessageV1
+
+	opts []opt
 }
 
 func split(in []any) (ev errorValues) {
@@ -43,6 +46,9 @@ func split(in []any) (ev errorValues) {
 			ev.grpcCode = &v
 		case opt:
 			ev.opts = append(ev.opts, v)
+
+		case protoadapt.MessageV1:
+			ev.grpcDetails = append(ev.grpcDetails, v)
 		}
 	}
 
