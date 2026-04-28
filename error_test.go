@@ -22,6 +22,15 @@ func Test_SimpleErrors(t *testing.T) {
 
 		require.Equal(t, expected, actual)
 	})
+	t.Run("simple_is", func(t *testing.T) {
+		expected := "simple one message error"
+		e := New(expected)
+
+		require.ErrorIs(t, e, e)
+
+		eWrapped := Wrap(e, "wrapped")
+		require.ErrorIs(t, eWrapped, e)
+	})
 	t.Run("simple_empty_wrapped", func(t *testing.T) {
 		expected := "simple one message error"
 		e := New(expected)

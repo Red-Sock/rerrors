@@ -28,7 +28,6 @@ func init() {
 			return
 		}
 	}
-
 }
 
 func New(msg string, args ...any) error {
@@ -49,7 +48,7 @@ func newErr(msg string, args ...any) Error {
 	err := Error{
 		msg:         strings.Join(append([]string{msg}, ev.str...), "; "),
 		grpcCode:    ev.grpcCode,
-		grpcDetails: ev.grpcDetails,
+		grpcDetails: &ev.grpcDetails,
 	}
 
 	for _, o := range ev.opts {
@@ -71,7 +70,7 @@ type Error struct {
 	trace       [3]uintptr
 
 	grpcCode    *codes.Code
-	grpcDetails []protoadapt.MessageV1
+	grpcDetails *[]protoadapt.MessageV1
 	httpCode    *int
 }
 
@@ -121,8 +120,8 @@ func (e Error) error() (msg string) {
 		msg += errSeparator + "GrpcCode: " + strconv.Itoa(int(*e.grpcCode))
 	}
 
-	if len(e.grpcDetails) != 0 {
-		for idx, detail := range e.grpcDetails {
+	if e.grpcDetails != nil {
+		for idx, detail := range *e.grpcDetails {
 			msg += errSeparator + fmt.Sprintf("GrpcDetails[%d]:", idx) + detail.String()
 		}
 	}
@@ -144,10 +143,19 @@ func (e Error) collectGrpcDetails() []protoadapt.MessageV1 {
 		}
 	}
 
-	return append(e.grpcDetails, innerDetails...)
+	if e.grpcDetails == nil {
+		return innerDetails
+	}
+
+	return append(*e.grpcDetails, innerDetails...)
 }
 
 func Is(err1, err2 error) bool {
+	var rerr1, rerr2 Error
+	if errors.As(err1, &rerr1) && errors.As(err2, &rerr2) {
+		return rerr1.msg == rerr2.msg
+	}
+
 	return errors.Is(err1, err2)
 }
 
