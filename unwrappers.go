@@ -33,12 +33,11 @@ func (e Error) GRPCStatus() *status.Status {
 	var ie Error
 	ok := errors.As(e.innerError, &ie)
 	if ok {
-		innerStat := ie.GRPCStatus()
-		return status.New(innerStat.Code(), e.Error())
+		return ie.GRPCStatus()
 	}
 
 	if e.grpcCode != nil {
-		st := status.New(*e.grpcCode, e.Error())
+		st := status.New(*e.grpcCode, e.msg)
 		details := e.collectGrpcDetails()
 
 		detailedSt, _ := st.WithDetails(details...)
